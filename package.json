@@ -20,6 +20,6 @@
   "devDependencies": {
     "jest": "29.6.0",
     "eslint": "8.45.0",
-    "supertest": "6.3.3"
+    "supertest": "7.2.2"
   }
 }
