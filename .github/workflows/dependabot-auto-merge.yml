@@ -1,0 +1,63 @@
+# Auto-approve and auto-merge Dependabot PRs for patch & minor updates.
+#
+# HOW IT WORKS
+# 1. Dependabot opens a PR.
+# 2. This workflow fetches PR metadata (update type, dependency name).
+# 3. If the update is patch or minor → auto-approve + enable auto-merge.
+# 4. GitHub waits for required status checks (CI) to pass, then merges.
+#
+# Major version bumps are left for manual review.
+
+name: Dependabot Auto-Merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      # ── 1. Fetch Dependabot metadata ──────────────────────────────────
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # ── 2. Auto-approve patch & minor updates ────────────────────────
+      - name: Approve PR
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 3. Enable auto-merge (waits for CI to pass) ──────────────────
+      - name: Enable auto-merge
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 4. Log what happened (for demo visibility) ───────────────────
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Dependabot Auto-Merge Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency | ${{ steps.metadata.outputs.dependency-names }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Update type | ${{ steps.metadata.outputs.update-type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous version | ${{ steps.metadata.outputs.previous-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New version | ${{ steps.metadata.outputs.new-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Directory | ${{ steps.metadata.outputs.directory }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package ecosystem | ${{ steps.metadata.outputs.package-ecosystem }} |" >> $GITHUB_STEP_SUMMARY
